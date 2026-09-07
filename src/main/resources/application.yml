@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: similar-products-service
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+
+server:
+  port: 5000
+  shutdown: graceful
+
+clients:
+  product-catalog:
+    base-url: ${PRODUCT_CATALOG_BASE_URL:http://localhost:3001}
+    connect-timeout: ${PRODUCT_CATALOG_CONNECT_TIMEOUT:500ms}
+    response-timeout: ${PRODUCT_CATALOG_RESPONSE_TIMEOUT:2s}
+    max-connections: ${PRODUCT_CATALOG_MAX_CONNECTIONS:500}
+    pending-acquire-max-count: ${PRODUCT_CATALOG_PENDING_ACQUIRE_MAX_COUNT:1000}
+    pending-acquire-timeout: ${PRODUCT_CATALOG_PENDING_ACQUIRE_TIMEOUT:1s}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true

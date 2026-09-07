@@ -1,5 +1,14 @@
 version: "3.3"
 services:
+  yourapp:
+    build:
+      context: .
+    ports:
+      - "5000:5000"
+    environment:
+      - PRODUCT_CATALOG_BASE_URL=http://simulado
+    depends_on:
+      - simulado
   influxdb:
     image: influxdb:1.8.2
     ports:
