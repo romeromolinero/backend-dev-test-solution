@@ -25,6 +25,8 @@ public final class FindSimilarProductsService {
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
                 .map(ProductId::new)
+                // Fetch details concurrently, but keep the catalog's ranking in the response.
+                // The cap also prevents a large similarity list from flooding the mock service.
                 .flatMapSequential(
                         productCatalog::findProductById,
                         MAX_CONCURRENT_DETAIL_REQUESTS,

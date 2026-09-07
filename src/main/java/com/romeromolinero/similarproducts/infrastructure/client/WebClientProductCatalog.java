@@ -90,6 +90,8 @@ public final class WebClientProductCatalog implements ProductCatalog {
     }
 
     private boolean hasTimeoutCause(Throwable error) {
+        // WebClient wraps Netty failures differently depending on where the timeout happens,
+        // so inspect the complete cause chain before deciding which public status to return.
         Throwable current = error;
         while (current != null) {
             if (current instanceof TimeoutException || current instanceof ReadTimeoutException) {
