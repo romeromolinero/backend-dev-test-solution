@@ -1,33 +1,114 @@
-# Backend dev technical test
-We want to offer a new feature to our customers showing similar products to the one they are currently seeing. To do this we agreed with our front-end applications to create a new REST API operation that will provide them the product detail of the similar products for a given one. [Here](./similarProducts.yaml) is the contract we agreed.
+# Similar Products API
 
-We already have an endpoint that provides the product Ids similar for a given one. We also have another endpoint that returns the product detail by product Id. [Here](./existingApis.yaml) is the documentation of the existing APIs.
+A production-minded solution to the [backend development technical test](https://github.com/dalogax/backendDevTest).
+It exposes the agreed composition endpoint on port `5000`, resolving the ordered product IDs from
+the provided catalog and fetching their details concurrently.
 
-**Create a Spring boot application that exposes the agreed REST API on port 5000.**
+## Quick start
 
-![Diagram](./assets/diagram.jpg "Diagram")
+Requirements: Java 17 or newer. Maven is downloaded automatically by the included wrapper.
 
-Note that _Test_ and _Mocks_ components are given, you must only implement _yourApp_.
-
-## Testing and Self-evaluation
-You can run the same test we will put through your application. You just need to have docker installed.
-
-First of all, you may need to enable file sharing for the `shared` folder on your docker dashboard -> settings -> resources -> file sharing.
-
-Then you can start the mocks and other needed infrastructure with the following command.
+```bash
+./mvnw spring-boot:run
 ```
-docker-compose up -d simulado influxdb grafana
-```
-Check that mocks are working with a sample request to [http://localhost:3001/product/1/similarids](http://localhost:3001/product/1/similarids).
 
-To execute the test run:
-```
-docker-compose run --rm k6 run scripts/test.js
-```
-Browse [http://localhost:3000/d/Le2Ku9NMk/k6-performance-test](http://localhost:3000/d/Le2Ku9NMk/k6-performance-test) to view the results.
+On Windows:
 
-## Evaluation
-The following topics will be considered:
-- Code clarity and maintainability
-- Performance
-- Resilience
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+The catalog mock must be reachable at `http://localhost:3001` (the default from the supplied
+contract). Then call:
+
+```bash
+curl http://localhost:5000/product/1/similar
+```
+
+The response preserves the similarity order:
+
+```json
+[
+  { "id": "2", "name": "Dress", "price": 19.99, "availability": true },
+  { "id": "3", "name": "Blazer", "price": 29.99, "availability": false },
+  { "id": "4", "name": "Boots", "price": 39.99, "availability": true }
+]
+```
+
+## Run everything with Docker
+
+```bash
+docker compose up --build -d simulado yourapp influxdb grafana
+docker compose run --rm k6 run scripts/test.js
+```
+
+- API: <http://localhost:5000/product/1/similar>
+- Health: <http://localhost:5000/actuator/health>
+- Metrics: <http://localhost:5000/actuator/metrics>
+- Grafana: <http://localhost:3000/d/Le2Ku9NMk/k6-performance-test>
+
+## Design
+
+```text
+HTTP controller
+      |
+      v
+FindSimilarProductsService -----> ProductCatalog port
+                                      |
+                                      v
+                           WebClient adapter / mock API
+```
+
+The application is fully reactive. Detail requests are subscribed concurrently through a pooled
+Reactor Netty client; `flatMapSequential` keeps the source ordering while avoiding sequential
+network latency. Concurrency is bounded, duplicate IDs are ignored, and no request thread blocks
+waiting for I/O.
+
+The default response timeout is two seconds. It prevents the supplied 5- and 50-second mock
+responses from exhausting resources under the 200-virtual-user workload. The behavior is explicit:
+
+| Situation | Response |
+| --- | --- |
+| Requested data is returned | `200` with ordered product details |
+| A referenced product does not exist | `404 PRODUCT_NOT_FOUND` |
+| The catalog exceeds the deadline | `504 CATALOG_TIMEOUT` |
+| The catalog fails or cannot be reached | `502 CATALOG_UNAVAILABLE` |
+| The path identifier is unsafe | `400 INVALID_PRODUCT_ID` |
+
+Retries are intentionally omitted. Retrying a saturated dependency multiplies load, while a GET
+caller or edge proxy can safely retry according to its own budget. Timeouts and pool limits are
+externalized instead.
+
+## Configuration
+
+Every value has a local default and can be overridden with an environment variable:
+
+| Variable | Default |
+| --- | --- |
+| `PRODUCT_CATALOG_BASE_URL` | `http://localhost:3001` |
+| `PRODUCT_CATALOG_CONNECT_TIMEOUT` | `500ms` |
+| `PRODUCT_CATALOG_RESPONSE_TIMEOUT` | `2s` |
+| `PRODUCT_CATALOG_MAX_CONNECTIONS` | `500` |
+| `PRODUCT_CATALOG_PENDING_ACQUIRE_MAX_COUNT` | `1000` |
+| `PRODUCT_CATALOG_PENDING_ACQUIRE_TIMEOUT` | `1s` |
+
+## Verification
+
+```bash
+./mvnw verify
+```
+
+The tests cover input validation, empty responses, parallel detail subscription, deterministic
+ordering, numeric IDs from the supplied mock, JSON decoding, downstream 404/500 handling, and the
+response deadline. GitHub Actions runs the same verification on every push and pull request.
+
+## Project layout
+
+- `domain`: validated values, response model, and domain-specific failures.
+- `application`: use case and outbound catalog port.
+- `infrastructure/client`: pooled WebClient adapter and external configuration.
+- `infrastructure/web`: REST controller and stable error mapping.
+- `shared`: unchanged mocks, k6 workload, and Grafana provisioning supplied by the challenge.
+
+The original OpenAPI contracts remain available in [existingApis.yaml](existingApis.yaml) and
+[similarProducts.yaml](similarProducts.yaml).
