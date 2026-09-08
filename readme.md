@@ -25,6 +25,10 @@ contract). Then call:
 curl http://localhost:5000/product/1/similar
 ```
 
+Opening <http://localhost:5000> now returns a small discovery response with the example endpoint
+and health-check URL. This root response works even when the catalog mock is not running; product
+requests still need the mock on port `3001`.
+
 The response preserves the similarity order:
 
 ```json
@@ -43,6 +47,7 @@ docker compose run --rm k6 run scripts/test.js
 ```
 
 - API: <http://localhost:5000/product/1/similar>
+- Service guide: <http://localhost:5000>
 - Health: <http://localhost:5000/actuator/health>
 - Metrics: <http://localhost:5000/actuator/metrics>
 - Grafana: <http://localhost:3000/d/Le2Ku9NMk/k6-performance-test>
