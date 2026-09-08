@@ -27,15 +27,15 @@ public final class FindSimilarProductsService {
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
                 .map(ProductId::new)
-                // Fetch details concurrently, but keep the catalog's ranking in the response.
-                // The cap also prevents a large similarity list from flooding the mock service.
+                // Consulta los detalles en paralelo, pero conserva la relevancia del catálogo.
+                // El límite también evita saturar el servicio simulado con una lista muy grande.
                 .flatMapSequential(
                         productCatalog::findProductById,
                         MAX_CONCURRENT_DETAIL_REQUESTS,
                         1)
                 .collectList()
-                // Concurrent detail failures can be combined by Reactor into one composite error.
-                // Expose the underlying catalog failure so the HTTP advice can keep its stable API.
+                // Reactor puede agrupar varios fallos simultáneos en una excepción compuesta.
+                // Recupera el error del catálogo para mantener estable la respuesta HTTP pública.
                 .onErrorMap(FindSimilarProductsService::unwrapCatalogFailure);
     }
 

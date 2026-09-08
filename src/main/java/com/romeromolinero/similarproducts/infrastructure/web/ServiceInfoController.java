@@ -10,11 +10,11 @@ public final class ServiceInfoController {
     @GetMapping(path = "/", produces = MediaType.APPLICATION_JSON_VALUE)
     public ServiceInfo serviceInfo() {
         return new ServiceInfo(
-                "Similar Products API",
-                "ready",
+                "API de productos similares",
+                "disponible",
                 "GET /product/1/similar",
                 "GET /actuator/health",
-                "The catalog mock must be running on localhost:3001 for product requests");
+                "El catálogo simulado debe ejecutarse en localhost:3001 para consultar productos");
     }
 
     public record ServiceInfo(

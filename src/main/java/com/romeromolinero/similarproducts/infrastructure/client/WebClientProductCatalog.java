@@ -34,7 +34,7 @@ public final class WebClientProductCatalog implements ProductCatalog {
                 "/product/{productId}/similarids",
                 productId,
                 STRING_LIST,
-                "similar products for '%s'".formatted(productId.value()));
+                "productos similares para '%s'".formatted(productId.value()));
     }
 
     @Override
@@ -43,7 +43,7 @@ public final class WebClientProductCatalog implements ProductCatalog {
                 "/product/{productId}",
                 productId,
                 new ParameterizedTypeReference<>() {},
-                "product '%s'".formatted(productId.value()));
+                "el producto '%s'".formatted(productId.value()));
     }
 
     private <T> Mono<T> get(
@@ -71,13 +71,14 @@ public final class WebClientProductCatalog implements ProductCatalog {
             String resource) {
         if (status.is2xxSuccessful()) {
             return body.switchIfEmpty(Mono.error(new CatalogUpstreamException(
-                    "Product catalog returned an empty response for %s".formatted(resource))));
+                    "El catálogo de productos devolvió una respuesta vacía al solicitar %s"
+                            .formatted(resource))));
         }
         if (status.value() == 404) {
             return Mono.error(new ProductNotFoundException(productId.value()));
         }
         return Mono.error(new CatalogUpstreamException(
-                "Product catalog returned HTTP %d while requesting %s"
+                "El catálogo de productos devolvió HTTP %d al solicitar %s"
                         .formatted(status.value(), resource)));
     }
 
@@ -86,12 +87,13 @@ public final class WebClientProductCatalog implements ProductCatalog {
             return new CatalogTimeoutException(resource, error);
         }
         return new CatalogUpstreamException(
-                "Product catalog could not be reached while requesting %s".formatted(resource), error);
+                "No se pudo contactar con el catálogo de productos al solicitar %s"
+                        .formatted(resource), error);
     }
 
     private boolean hasTimeoutCause(Throwable error) {
-        // WebClient wraps Netty failures differently depending on where the timeout happens,
-        // so inspect the complete cause chain before deciding which public status to return.
+        // WebClient encapsula los fallos de Netty de forma distinta según dónde expire la petición,
+        // por eso se revisa toda la cadena de causas antes de decidir el estado HTTP público.
         Throwable current = error;
         while (current != null) {
             if (current instanceof TimeoutException || current instanceof ReadTimeoutException) {

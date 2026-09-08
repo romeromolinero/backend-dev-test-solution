@@ -1,35 +1,47 @@
-# Similar Products API
+# API de productos similares
 
-A production-minded solution to the [backend development technical test](https://github.com/dalogax/backendDevTest).
-It exposes the agreed composition endpoint on port `5000`, resolving the ordered product IDs from
-the provided catalog and fetching their details concurrently.
+Solución para la [prueba técnica de backend](https://github.com/dalogax/backendDevTest). La
+aplicación expone el endpoint solicitado en el puerto `5000`, consulta el catálogo simulado y
+devuelve los productos similares respetando su orden original.
 
-## Quick start
+## Qué hace la aplicación
 
-Requirements: Java 17 or newer. Maven is downloaded automatically by the included wrapper.
+Al recibir `GET /product/{productId}/similar`:
 
-```bash
-./mvnw spring-boot:run
-```
+1. Solicita los identificadores similares a `GET /product/{productId}/similarids`.
+2. Consulta en paralelo el detalle de cada producto.
+3. Elimina identificadores duplicados sin alterar su posición.
+4. Devuelve los detalles en el mismo orden de relevancia recibido.
 
-On Windows:
+La implementación usa Spring WebFlux y `WebClient`, por lo que no bloquea un hilo mientras espera
+las respuestas del catálogo.
+
+## Inicio rápido sin Docker
+
+Necesitas Java 17 o superior. El wrapper incluido descarga Maven automáticamente.
+
+En Windows:
 
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
 
-The catalog mock must be reachable at `http://localhost:3001` (the default from the supplied
-contract). Then call:
+En Linux o macOS:
+
+```bash
+./mvnw spring-boot:run
+```
+
+El catálogo simulado debe estar disponible en `http://localhost:3001`. Después puedes consultar:
 
 ```bash
 curl http://localhost:5000/product/1/similar
 ```
 
-Opening <http://localhost:5000> now returns a small discovery response with the example endpoint
-and health-check URL. This root response works even when the catalog mock is not running; product
-requests still need the mock on port `3001`.
+También puedes abrir <http://localhost:5000>. Esa ruta muestra una breve guía del servicio y
+funciona aunque el catálogo simulado no esté arrancado.
 
-The response preserves the similarity order:
+## Respuesta de ejemplo
 
 ```json
 [
@@ -39,56 +51,69 @@ The response preserves the similarity order:
 ]
 ```
 
-## Run everything with Docker
+Los nombres de los campos se mantienen como los define el contrato original.
+
+## Arranque con Docker
+
+El repositorio conserva la configuración oficial para ejecutar la aplicación, el catálogo simulado
+y las herramientas de carga:
 
 ```bash
 docker compose up --build -d simulado yourapp influxdb grafana
 docker compose run --rm k6 run scripts/test.js
 ```
 
+Servicios disponibles:
+
 - API: <http://localhost:5000/product/1/similar>
-- Service guide: <http://localhost:5000>
-- Health: <http://localhost:5000/actuator/health>
-- Metrics: <http://localhost:5000/actuator/metrics>
+- Guía del servicio: <http://localhost:5000>
+- Salud: <http://localhost:5000/actuator/health>
+- Métricas: <http://localhost:5000/actuator/metrics>
 - Grafana: <http://localhost:3000/d/Le2Ku9NMk/k6-performance-test>
 
-## Design
+## Diseño
 
 ```text
-HTTP controller
+Controlador HTTP
       |
       v
-FindSimilarProductsService -----> ProductCatalog port
+FindSimilarProductsService -----> puerto ProductCatalog
                                       |
                                       v
-                           WebClient adapter / mock API
+                         adaptador WebClient / API simulada
 ```
 
-The application is fully reactive. Detail requests are subscribed concurrently through a pooled
-Reactor Netty client; `flatMapSequential` keeps the source ordering while avoiding sequential
-network latency. Concurrency is bounded, duplicate IDs are ignored, and no request thread blocks
-waiting for I/O.
+Las consultas de detalle se ejecutan simultáneamente mediante un cliente Reactor Netty con pool de
+conexiones. `flatMapSequential` conserva el orden original sin renunciar al paralelismo. La
+concurrencia está limitada, se ignoran los identificadores repetidos y ninguna petición HTTP bloquea
+un hilo mientras espera entrada o salida.
 
-The default response timeout is two seconds. It prevents the supplied 5- and 50-second mock
-responses from exhausting resources under the 200-virtual-user workload. The behavior is explicit:
+## Errores y tiempos de espera
 
-| Situation | Response |
+El tiempo máximo de respuesta del catálogo es de dos segundos. Esto evita que las respuestas
+simuladas de 5 y 50 segundos agoten los recursos durante la prueba de 200 usuarios virtuales.
+
+| Situación | Respuesta pública |
 | --- | --- |
-| Requested data is returned | `200` with ordered product details |
-| A referenced product does not exist | `404 PRODUCT_NOT_FOUND` |
-| The catalog exceeds the deadline | `504 CATALOG_TIMEOUT` |
-| The catalog fails or cannot be reached | `502 CATALOG_UNAVAILABLE` |
-| The path identifier is unsafe | `400 INVALID_PRODUCT_ID` |
+| Datos obtenidos correctamente | `200` con los productos ordenados |
+| Un producto referenciado no existe | `404 PRODUCT_NOT_FOUND` |
+| El catálogo supera el tiempo máximo | `504 CATALOG_TIMEOUT` |
+| El catálogo falla o no está disponible | `502 CATALOG_UNAVAILABLE` |
+| El identificador de la ruta no es seguro | `400 INVALID_PRODUCT_ID` |
 
-Retries are intentionally omitted. Retrying a saturated dependency multiplies load, while a GET
-caller or edge proxy can safely retry according to its own budget. Timeouts and pool limits are
-externalized instead.
+No se realizan reintentos automáticos. Reintentar contra una dependencia saturada multiplicaría la
+carga; el cliente o un proxy de entrada pueden repetir un `GET` de acuerdo con su propio presupuesto
+de tiempo.
 
-## Configuration
+Si varias consultas fallan al mismo tiempo, Reactor puede agrupar sus excepciones. La aplicación
+recupera el error de catálogo original para mantener estable la respuesta HTTP documentada.
 
-Every value has a local default and can be overridden with an environment variable:
+## Configuración
 
-| Variable | Default |
+Todos los valores tienen un valor local predeterminado y se pueden sobrescribir mediante variables
+de entorno:
+
+| Variable | Valor predeterminado |
 | --- | --- |
 | `PRODUCT_CATALOG_BASE_URL` | `http://localhost:3001` |
 | `PRODUCT_CATALOG_CONNECT_TIMEOUT` | `500ms` |
@@ -97,24 +122,24 @@ Every value has a local default and can be overridden with an environment variab
 | `PRODUCT_CATALOG_PENDING_ACQUIRE_MAX_COUNT` | `1000` |
 | `PRODUCT_CATALOG_PENDING_ACQUIRE_TIMEOUT` | `1s` |
 
-## Verification
+## Verificación
 
 ```bash
 ./mvnw verify
 ```
 
-The tests cover input validation, empty responses, parallel detail subscription, deterministic
-ordering, numeric IDs from the supplied mock, JSON decoding, downstream 404/500 handling, and both
-single and concurrent response deadlines. GitHub Actions runs the same verification on every push
-and pull request.
+Actualmente hay 13 pruebas automatizadas. Cubren la validación de identificadores, respuestas
+vacías, paralelismo, conservación del orden, decodificación JSON, errores 404/500 del catálogo y
+timeouts individuales y concurrentes. GitHub Actions ejecuta la misma verificación en cada `push` y
+`pull request`.
 
-## Project layout
+## Estructura del proyecto
 
-- `domain`: validated values, response model, and domain-specific failures.
-- `application`: use case and outbound catalog port.
-- `infrastructure/client`: pooled WebClient adapter and external configuration.
-- `infrastructure/web`: REST controller and stable error mapping.
-- `shared`: unchanged mocks, k6 workload, and Grafana provisioning supplied by the challenge.
+- `domain`: valores validados, modelo de respuesta y errores del dominio.
+- `application`: caso de uso y puerto de salida hacia el catálogo.
+- `infrastructure/client`: adaptador WebClient, pool y configuración externa.
+- `infrastructure/web`: controlador REST y traducción estable de errores HTTP.
+- `shared`: mocks, prueba k6 y configuración de Grafana suministrados con el enunciado.
 
-The original OpenAPI contracts remain available in [existingApis.yaml](existingApis.yaml) and
+Los contratos OpenAPI originales se conservan en [existingApis.yaml](existingApis.yaml) y
 [similarProducts.yaml](similarProducts.yaml).

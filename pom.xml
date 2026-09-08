@@ -14,8 +14,8 @@
     <groupId>com.romeromolinero</groupId>
     <artifactId>similar-products-service</artifactId>
     <version>1.0.0</version>
-    <name>Similar products service</name>
-    <description>Reactive composition API for the backend technical test</description>
+    <name>Servicio de productos similares</name>
+    <description>API reactiva de composición para la prueba técnica de backend</description>
 
     <properties>
         <java.version>17</java.version>

@@ -17,8 +17,8 @@ class ServiceInfoControllerTest {
                 .expectStatus().isOk()
                 .expectHeader().contentType("application/json")
                 .expectBody()
-                .jsonPath("$.service").isEqualTo("Similar Products API")
-                .jsonPath("$.status").isEqualTo("ready")
+                .jsonPath("$.service").isEqualTo("API de productos similares")
+                .jsonPath("$.status").isEqualTo("disponible")
                 .jsonPath("$.tryEndpoint").isEqualTo("GET /product/1/similar")
                 .jsonPath("$.healthEndpoint").isEqualTo("GET /actuator/health");
     }
