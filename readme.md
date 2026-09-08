@@ -104,8 +104,9 @@ Every value has a local default and can be overridden with an environment variab
 ```
 
 The tests cover input validation, empty responses, parallel detail subscription, deterministic
-ordering, numeric IDs from the supplied mock, JSON decoding, downstream 404/500 handling, and the
-response deadline. GitHub Actions runs the same verification on every push and pull request.
+ordering, numeric IDs from the supplied mock, JSON decoding, downstream 404/500 handling, and both
+single and concurrent response deadlines. GitHub Actions runs the same verification on every push
+and pull request.
 
 ## Project layout
 

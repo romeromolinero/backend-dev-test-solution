@@ -4,12 +4,15 @@ import com.romeromolinero.similarproducts.application.FindSimilarProductsService
 import com.romeromolinero.similarproducts.application.ProductCatalog;
 import com.romeromolinero.similarproducts.domain.ProductDetail;
 import com.romeromolinero.similarproducts.domain.ProductId;
+import com.romeromolinero.similarproducts.domain.exception.CatalogTimeoutException;
 import com.romeromolinero.similarproducts.domain.exception.ProductNotFoundException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 
 class SimilarProductsControllerTest {
@@ -55,6 +58,20 @@ class SimilarProductsControllerTest {
                 .expectStatus().isNotFound()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("PRODUCT_NOT_FOUND");
+    }
+
+    @Test
+    void mapsConcurrentCatalogTimeoutsToGatewayTimeout() {
+        catalog.similarIds = Mono.error(Exceptions.multiple(
+                new CatalogTimeoutException("product '1000'", new TimeoutException()),
+                new CatalogTimeoutException("product '10000'", new TimeoutException())));
+
+        client.get()
+                .uri("/product/3/similar")
+                .exchange()
+                .expectStatus().isEqualTo(504)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("CATALOG_TIMEOUT");
     }
 
     @Test

@@ -2,8 +2,10 @@ package com.romeromolinero.similarproducts.application;
 
 import com.romeromolinero.similarproducts.domain.ProductDetail;
 import com.romeromolinero.similarproducts.domain.ProductId;
+import com.romeromolinero.similarproducts.domain.exception.CatalogException;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -31,6 +33,19 @@ public final class FindSimilarProductsService {
                         productCatalog::findProductById,
                         MAX_CONCURRENT_DETAIL_REQUESTS,
                         1)
-                .collectList();
+                .collectList()
+                // Concurrent detail failures can be combined by Reactor into one composite error.
+                // Expose the underlying catalog failure so the HTTP advice can keep its stable API.
+                .onErrorMap(FindSimilarProductsService::unwrapCatalogFailure);
+    }
+
+    private static Throwable unwrapCatalogFailure(Throwable error) {
+        if (error instanceof CatalogException) {
+            return error;
+        }
+        return Exceptions.unwrapMultiple(error).stream()
+                .filter(CatalogException.class::isInstance)
+                .findFirst()
+                .orElse(error);
     }
 }
